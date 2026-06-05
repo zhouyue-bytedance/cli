@@ -126,6 +126,48 @@ lark-cli docs +fetch --api-version v2 --doc <doc_token> --doc-format markdown
 - 根据用户诉求（总结/待办/章节/完整发言记录等），选择合适的产物进行分析和信息提取
 - 如果两种产物都不存在或没有权限，需如实告知用户
 
+## Note 域
+
+- **lark-note skill** 负责**已知 `note_id`** 时的纪要直查：纪要详情、展示类型、关联文档 token，以及三合一纪要的原始逐字记录。
+- **入口边界**：Note 域只接受 `note_id`。只有 `meeting_id` / `calendar_event_id` / `minute_token` 等会议线索时，先用 `lark-vc` 的 `+notes` 定位 `note_id`，再进入 Note 域。
+- **展示类型（`note_display_type`）决定逐字稿路由**：
+  - `normal`：逐字稿是独立文档（`verbatim_doc_token`），用 `docs +fetch` 读取。
+  - `unified`（三合一）：逐字稿不是独立文档，用 `note +transcript --note-id` 拉取原始记录。
+- **判别键是 `note_display_type`，不是 `verbatim_doc_token` 是否为空**：unified 纪要也可能返回非空 `verbatim_doc_token`，但逐字稿仍以 `note +transcript` 为准（输出更结构化）。
+
+### 资源关系
+
+```
+Meeting
+├── meeting_id
+├── calendar_event_id  → meeting relation
+├── minute_token       → Minutes
+└── note_id            → Note
+
+Note
+├── note_display_type  (unknown / normal / unified)
+├── note_doc_token     → Docs
+├── verbatim_doc_token → Docs (normal 路径的逐字稿文档)
+└── unified transcript → note +transcript (unified 原始记录)
+
+Docs
+└── doc_token / Docx URL → docs +fetch
+
+Minutes
+├── minute_token → 基础信息
+└── media        → minutes +download
+```
+
+### 边界判断表（按用户已有输入选第一入口）
+
+| 用户输入 | 第一入口 | 后续入口 |
+|---------|---------|---------|
+| `meeting_id` | `lark-vc` | `lark-note` / `lark-doc` |
+| `calendar_event_id` | `lark-vc` | `lark-note` / `lark-doc` |
+| `minute_token` | `lark-vc`（纪要产物索引）/ `lark-minutes`（妙记基础信息、媒体） | `lark-note` / `lark-doc` |
+| `note_id` | `lark-note` | `lark-doc` |
+| `doc_token` / Docx URL | `lark-doc` | 不反推 Note |
+
 ## Doc 域
 
 - **lark-doc skill** 负责飞书云文档管理，包括获取文档元信息、读取文档内容、创建和编辑文档等操作。

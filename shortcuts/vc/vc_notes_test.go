@@ -175,68 +175,9 @@ func TestSanitizeDirName(t *testing.T) {
 	}
 }
 
-func TestParseArtifactType(t *testing.T) {
-	tests := []struct {
-		input any
-		want  int
-	}{
-		{float64(1), 1},
-		{float64(2), 2},
-		{json.Number("3"), 3},
-		{"unknown", 0},
-		{nil, 0},
-	}
-	for _, tt := range tests {
-		got := parseArtifactType(tt.input)
-		if got != tt.want {
-			t.Errorf("parseArtifactType(%v) = %d, want %d", tt.input, got, tt.want)
-		}
-	}
-}
-
-func TestExtractArtifactTokens(t *testing.T) {
-	artifacts := []any{
-		map[string]any{"doc_token": "main_doc", "artifact_type": float64(1)},
-		map[string]any{"doc_token": "verbatim_doc", "artifact_type": float64(2)},
-		map[string]any{"doc_token": "unknown_doc", "artifact_type": float64(99)},
-		nil,
-	}
-	noteDoc, verbatimDoc := extractArtifactTokens(artifacts)
-	if noteDoc != "main_doc" {
-		t.Errorf("noteDoc = %q, want %q", noteDoc, "main_doc")
-	}
-	if verbatimDoc != "verbatim_doc" {
-		t.Errorf("verbatimDoc = %q, want %q", verbatimDoc, "verbatim_doc")
-	}
-}
-
-func TestExtractArtifactTokens_Empty(t *testing.T) {
-	noteDoc, verbatimDoc := extractArtifactTokens(nil)
-	if noteDoc != "" || verbatimDoc != "" {
-		t.Errorf("expected empty tokens for nil input, got %q, %q", noteDoc, verbatimDoc)
-	}
-}
-
-func TestExtractDocTokens(t *testing.T) {
-	refs := []any{
-		map[string]any{"doc_token": "shared1"},
-		map[string]any{"doc_token": "shared2"},
-		map[string]any{"doc_token": ""},
-		map[string]any{},
-		nil,
-	}
-	tokens := extractDocTokens(refs)
-	if len(tokens) != 2 || tokens[0] != "shared1" || tokens[1] != "shared2" {
-		t.Errorf("extractDocTokens = %v, want [shared1 shared2]", tokens)
-	}
-}
-
-func TestExtractDocTokens_Empty(t *testing.T) {
-	tokens := extractDocTokens(nil)
-	if tokens != nil {
-		t.Errorf("expected nil for nil input, got %v", tokens)
-	}
-}
+// Note-detail parsing helpers (parseArtifactType/extractArtifactTokens/
+// extractDocTokens) moved to the note domain; their tests live in
+// shortcuts/note/note_test.go.
 
 // ---------------------------------------------------------------------------
 // Integration tests: +notes with mocked HTTP
@@ -342,25 +283,6 @@ func TestNotes_BatchLimit(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "too many IDs") {
 		t.Errorf("expected 'too many IDs' error, got: %v", err)
-	}
-}
-
-func TestParseArtifactType_AllBranches(t *testing.T) {
-	// cover json.Number branch
-	if got := parseArtifactType(json.Number("1")); got != 1 {
-		t.Errorf("json.Number: got %d, want 1", got)
-	}
-	// cover float64 branch
-	if got := parseArtifactType(float64(2)); got != 2 {
-		t.Errorf("float64: got %d, want 2", got)
-	}
-	// cover default branch
-	if got := parseArtifactType("str"); got != 0 {
-		t.Errorf("default: got %d, want 0", got)
-	}
-	// cover nil
-	if got := parseArtifactType(nil); got != 0 {
-		t.Errorf("nil: got %d, want 0", got)
 	}
 }
 

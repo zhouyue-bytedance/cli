@@ -45,6 +45,7 @@ lark-cli docs +update --api-version v2 --doc "文档URL或token" --command appen
 - 如果目标是画板/whiteboard/画板缩略图 → 只能用 `lark-cli docs +media-download --type whiteboard`（不要用 `+media-preview`）
 - 拿到 spreadsheet URL/token 后 → 切到 `lark-sheets` 做对象内部操作
 - 用户说"给文档加评论""查看评论""回复评论""给评论加/删除表情 reaction" → 切到 `lark-drive` 处理
+- **Note 域边界**：本 skill 只负责 `doc_token` / Docx URL 的正文读取。用户直接给 `note_id`，或要查"三合一 / unified 纪要原始记录" → **不走本 skill，切到 [`lark-note`](../lark-note/SKILL.md)**。禁止从正文或 `doc_token` 反推 `note_id`，禁止把三合一 transcript 当普通 Docx 正文读取。
 - 文档内容中出现嵌入的 `<sheet>`、`<bitable>` 或 `<cite file-type="sheets|bitable">` 标签时 → **必须主动提取 token 并切到对应技能下钻读取内部数据**，不能只呈现标签本身
 
 | 标签 / 属性 | 提取字段 | 切到技能 |

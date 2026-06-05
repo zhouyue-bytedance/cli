@@ -13,7 +13,6 @@ package vc
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -32,6 +31,7 @@ import (
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/shortcuts/common"
+	"github.com/larksuite/cli/shortcuts/note"
 )
 
 // per-flag additional scope requirements for +notes (vc:note:read is checked by framework)
@@ -53,12 +53,6 @@ var (
 	}
 )
 
-// artifact type enum from note detail API
-const (
-	artifactTypeMainDoc  = 1 // main note document
-	artifactTypeVerbatim = 2 // verbatim transcript
-)
-
 const logPrefix = "[vc +notes]"
 
 const (
@@ -68,9 +62,6 @@ const (
 	recordingNotFoundCode     = 121004 // 该会议没有妙记文件
 	recordingNoPermissionCode = 121005 // 非会议参与者无权查看
 	recordingGeneratingCode   = 124002 // 录制/妙记文件仍在生成中
-
-	// note detail API specific error code.
-	noteNoPermissionCode = 121005 // 调用者没有该纪要的阅读权限
 )
 
 func minutesReadError(err error, minuteToken string) error {
@@ -532,85 +523,20 @@ func saveTranscriptToFile(runtime *common.RuntimeContext, minuteToken, title str
 	return transcriptPath
 }
 
-// parseArtifactType extracts artifact_type as int from varying JSON number representations.
-func parseArtifactType(v any) int {
-	switch n := v.(type) {
-	case json.Number:
-		i, _ := n.Int64()
-		return int(i)
-	case float64:
-		return int(n)
-	default:
-		return 0
-	}
-}
-
-// extractArtifactTokens picks main-doc and verbatim-doc tokens from the artifacts list.
-func extractArtifactTokens(artifacts []any) (noteDoc, verbatimDoc string) {
-	for _, a := range artifacts {
-		artifact, _ := a.(map[string]any)
-		if artifact == nil {
-			continue
-		}
-		docToken, _ := artifact["doc_token"].(string)
-		switch parseArtifactType(artifact["artifact_type"]) {
-		case artifactTypeMainDoc:
-			noteDoc = docToken
-		case artifactTypeVerbatim:
-			verbatimDoc = docToken
-		default:
-			// ignore unknown artifact types
-		}
-	}
-	return
-}
-
-// extractDocTokens collects doc_token values from a list of reference objects.
-func extractDocTokens(refs []any) []string {
-	var tokens []string
-	for _, s := range refs {
-		source, _ := s.(map[string]any)
-		if source == nil {
-			continue
-		}
-		if docToken, _ := source["doc_token"].(string); docToken != "" {
-			tokens = append(tokens, docToken)
-		}
-	}
-	return tokens
-}
-
-// fetchNoteDetail retrieves note document tokens via note_id.
-func fetchNoteDetail(_ context.Context, runtime *common.RuntimeContext, noteID string) map[string]any {
-	data, err := runtime.DoAPIJSON(http.MethodGet, fmt.Sprintf("/open-apis/vc/v1/notes/%s", validate.EncodePathSegment(noteID)), nil, nil)
+// fetchNoteDetail retrieves note fields via note_id by delegating to the note
+// domain (the canonical owner of note-detail parsing) and adapting the typed
+// result into the historical map shape `vc +notes` merges into its output. The
+// new note_id / note_display_type fields ride along via Detail.ToMap.
+func fetchNoteDetail(ctx context.Context, runtime *common.RuntimeContext, noteID string) map[string]any {
+	detail, err := note.FetchDetail(ctx, runtime, noteID)
 	if err != nil {
 		var exitErr *output.ExitError
-		if errors.As(err, &exitErr) && exitErr.Detail != nil && exitErr.Detail.Code == noteNoPermissionCode {
+		if errors.As(err, &exitErr) && exitErr.Detail != nil && exitErr.Detail.Code == note.NoNoteReadPermissionCode {
 			return map[string]any{"error": fmt.Sprintf("[%v]: no read permission for this meeting note", exitErr.Detail.Code)}
 		}
 		return map[string]any{"error": fmt.Sprintf("failed to query note detail: %v", err)}
 	}
-
-	note, _ := data["note"].(map[string]any)
-	if note == nil {
-		return map[string]any{"error": "note detail is empty"}
-	}
-
-	creatorID, _ := note["creator_id"].(string)
-	createTime := common.FormatTime(note["create_time"])
-	noteDocToken, verbatimDocToken := extractArtifactTokens(common.GetSlice(note, "artifacts"))
-	sharedDocTokens := extractDocTokens(common.GetSlice(note, "references"))
-
-	result := map[string]any{
-		"creator_id":         creatorID,
-		"create_time":        createTime,
-		"note_doc_token":     noteDocToken,
-		"verbatim_doc_token": verbatimDocToken,
-	}
-	if len(sharedDocTokens) > 0 {
-		result["shared_doc_tokens"] = sharedDocTokens
-	}
-	return result
+	return detail.ToMap()
 }
 
 // VCNotes queries meeting notes via meeting-ids, minute-tokens, or calendar-event-ids.

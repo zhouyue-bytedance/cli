@@ -106,6 +106,11 @@ Minutes (妙记) ← minute_token 标识
 > - 用户说"把音视频文件转成纪要 / 逐字稿 / 文字稿 / 撰写文字 / 总结 / 待办 / 章节" → 先上传获取 `file_token`，调用 `minutes +upload` 生成 `minute_url`，再提取 `minute_token` 走 `vc +notes --minute-tokens`
 > - 用户说"重命名妙记 / 改妙记标题 / 修改妙记名字" → `minutes +update`
 > - 用户说"替换说话人 / 把 A 的发言改成 B / 重新归属发言人" → `minutes +speaker-replace`
+>
+> **Note 域边界（禁止规则）**：`minute_token` 是妙记文件标识，**不是** `note_id`。
+> - 不要把 `minute_token` 传给 `note +detail` 或 `note +transcript`。
+> - 不在本 skill 处理 Note 详情或三合一（unified）transcript。
+> - 需要纪要产物索引（含 `note_id` / `note_display_type`）时，走 `vc +notes --minute-tokens`；拿到 `note_id` 后再切到 [lark-note](../lark-note/SKILL.md)。
 
 ## Shortcuts（推荐优先使用）
 

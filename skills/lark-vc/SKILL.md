@@ -21,7 +21,7 @@ metadata:
 ## 核心概念
 
 - **视频会议（Meeting）**：飞书视频会议实例，通过 meeting_id 标识。已结束的会议支持通过关键词、时间段、参会人、组织者、会议室等条件搜索（见 `+search`）。
-- **会议纪要（Note）**：视频会议结束后生成的结构化文档，包含纪要文档（包含总结、待办）和逐字稿文档。
+- **会议纪要（Note）**：视频会议结束后生成的结构化文档，通过 `note_id` 标识，包含纪要文档（总结、待办）和逐字稿文档。`note_display_type` 区分**普通纪要（`normal`）**和**三合一纪要（`unified`）**；已知 `note_id` 的直查与三合一原始记录请用 [lark-note](../lark-note/SKILL.md)。
 - **妙记（Minutes）**：来源于飞书视频会议的录制产物或用户上传的音视频文件，支持视频/音频的转写，包含总结、待办、章节和文字记录，通过 minute_token 标识。
 - **纪要文档（MainDoc）**：AI 智能纪要的主文档，包含 AI 生成的总结和待办，对应 `note_doc_token`。
 - **用户会议纪要（MeetingNotes）**：用户主动绑定到会议的纪要文档，对应 `meeting_notes`。仅通过 `--calendar-event-ids` 路径返回。
@@ -108,10 +108,11 @@ lark-cli vc meeting get --params '{"meeting_id":"<meeting_id>","with_participant
 
 ```
 Meeting (视频会议)
-├── Note (会议纪要)
+├── Note (会议纪要) ← note_id 标识，note_display_type: normal / unified
 │   ├── MainDoc (AI 智能纪要文档, note_doc_token)
 │   ├── MeetingNotes (用户绑定的会议纪要文档, meeting_notes)
-│   ├── VerbatimDoc (逐字稿, verbatim_doc_token)
+│   ├── VerbatimDoc (逐字稿, verbatim_doc_token) ← normal 路径
+│   ├── UnifiedTranscript (三合一原始记录) ← unified 路径，note +transcript（lark-note）
 │   └── SharedDoc (会中共享文档)
 └── Minutes (妙记) ← minute_token 标识，+recording 从 meeting_id 获取
     ├── Transcript (文字记录)
@@ -130,6 +131,11 @@ Meeting (视频会议)
 > **妙记边界**：`+notes` 负责纪要内容、逐字稿和 AI 产物；妙记基础信息请优先看 [`+recording`](references/lark-vc-recording.md) 与 [lark-minutes](../lark-minutes/SKILL.md)。
 >
 > **文件转纪要边界**：如果用户给的是本地音视频文件，并希望得到纪要、逐字稿、总结、待办或章节，入口应先走 [lark-minutes](../lark-minutes/SKILL.md) 的上传流程生成 `minute_url` / `minute_token`，再回到 `vc +notes --minute-tokens` 获取内容产物。
+>
+> **Note 域边界**：`vc +notes` 是从**会议线索**（`meeting_id` / `calendar_event_id` / `minute_token`）定位纪要的入口，返回 `note_id` 和 `note_display_type`。
+> - 用户**已经持有 `note_id`** 想查纪要详情 / 类型 / 三合一原始记录时，**不要走 `vc +notes`**，直接切到 [lark-note](../lark-note/SKILL.md)。
+> - 用户**已经持有 `doc_token`** 且目标是读正文时，**不要走 `vc +notes`**，直接切到 [lark-doc](../lark-doc/SKILL.md)。
+> - `vc +notes` 返回 `note_display_type=unified` 且用户要逐字稿 / 原始记录时，用返回的 `note_id` 走 `note +transcript`（[lark-note](../lark-note/SKILL.md)）。
 >
 > **特殊情况**: 当用户查询“今天有哪些会议”时，通过 `vc +search` 查询今天开过的会议记录，同时使用 lark-calendar 技能查询今天还未开始的会议，统一整理后展示给用户。
 
