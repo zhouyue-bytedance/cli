@@ -32,8 +32,8 @@ const (
 	logPrefix = "[note +transcript]"
 
 	// maxTranscriptPages bounds the pagination loop so a misbehaving has_more
-	// can never spin forever. 500 pages * 200 paragraphs covers any real
-	// meeting by a wide margin.
+	// can never spin forever. transcriptPageSize reduces round trips; full
+	// transcript correctness still depends on has_more/cursor pagination.
 	maxTranscriptPages = 500
 	transcriptPageSize = 200
 	transcriptLocale   = "zh_cn"
