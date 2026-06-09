@@ -26,6 +26,7 @@ var migratedEnvelopePaths = []string{
 	"shortcuts/task/",
 	"shortcuts/vc/",
 	"shortcuts/whiteboard/",
+	"shortcuts/wiki/",
 	"shortcuts/im/",
 }
 
