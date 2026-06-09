@@ -946,6 +946,7 @@ func TestCheckNoLegacyCommonHelperCall_RejectsLegacyHelpersOnMigratedPath(t *tes
 	paths := []string{
 		"shortcuts/drive/drive_search.go",
 		"shortcuts/mail/mail_send.go",
+		"shortcuts/markdown/markdown_fetch.go",
 		"shortcuts/okr/okr_progress_create.go",
 		"shortcuts/task/task_update.go",
 		"shortcuts/whiteboard/whiteboard_query.go",
@@ -994,6 +995,23 @@ func boom() {
 	}
 	if !strings.Contains(v[0].Suggestion, "common.RejectDangerousCharsTyped") {
 		t.Errorf("suggestion should name typed replacement, got: %s", v[0].Suggestion)
+	}
+}
+
+func TestCheckNoLegacyCommonHelperCall_CoversMarkdownPathWithAliasAndFunctionValue(t *testing.T) {
+	src := `package migrated
+
+import c "github.com/larksuite/cli/shortcuts/common"
+
+func boom() {
+	f := c.FlagErrorf
+	_ = f
+	c.WrapInputStatError(nil)
+}
+`
+	v := CheckNoLegacyCommonHelperCall("shortcuts/markdown/markdown_fetch.go", src)
+	if len(v) != 2 {
+		t.Fatalf("expected 2 violations for aliased/function-value legacy helpers on markdown path, got %d: %+v", len(v), v)
 	}
 }
 
