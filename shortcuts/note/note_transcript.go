@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 //
-// note +transcript — fetch the unified (three-in-one) note transcript by a
+// note +transcript — fetch the unified note transcript by a
 // known note_id. The API is paginated; the CLI walks all pages internally,
 // concatenates the content and saves the whole transcript to a local file.
 
@@ -51,7 +51,7 @@ const (
 var NoteTranscript = common.Shortcut{
 	Service:     "note",
 	Command:     "+transcript",
-	Description: "Fetch the unified (three-in-one) note transcript and save it to a file",
+	Description: "Fetch the unified note transcript and save it to a file",
 	Risk:        "read",
 	Scopes:      []string{"vc:note:read"},
 	AuthTypes:   []string{"user"},

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 // Package note owns the Note domain: querying note detail and the unified
-// (three-in-one) transcript by a known note_id. The vc domain locates a
+// transcript by a known note_id. The vc domain locates a
 // note_id from meeting context and delegates note-detail parsing here, so the
 // parsing logic lives in exactly one place.
 package note
