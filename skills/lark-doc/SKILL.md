@@ -18,7 +18,7 @@ metadata:
 # 常用示例
 lark-cli docs +fetch  --api-version v2 --doc "文档URL或token"
 lark-cli docs +create --api-version v2 --content '<title>标题</title><p>内容</p>'
-lark-cli docs +update --api-version v2 --doc "文档URL或token" --command append --content '<p>内容</p>'
+lark-cli docs +update --api-version v2 --doc "文档URL或token" --command block_insert_after --block-id "目标block_id" --content '<p>内容</p>'
 ```
 
 ## 前置条件 — 执行操作前必读
@@ -32,6 +32,7 @@ lark-cli docs +update --api-version v2 --doc "文档URL或token" --command appen
 
 > **格式选择规则（全局）：**
 > - **创建 / 导入场景**（`docs +create`，或 `docs +update --command append/overwrite` 的整段写入）：XML 和 Markdown 都可以。用户提供 `.md` 本地文件、或明确说"导入 Markdown"时，直接用 Markdown；否则默认 XML（可用 callout、grid、checkbox 等富 block）。
+> - ⚠️ **`append` 永远追加到文档末尾**。逐章填充内容请用 `block_insert_after --block-id <标题 block_id>`，不要用 `append`。
 > - **精准编辑场景**（`docs +update` 的 `str_replace` / `block_insert_after` / `block_replace` / `block_delete` / `block_move_after` 等局部精修指令）：优先使用 XML（`--doc-format xml`，即默认值）。XML 能稳定表达 block 结构和样式，局部精修更可控；不要因为 Markdown 更简单就自行切换。
 
 ## 快速决策

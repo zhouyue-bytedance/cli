@@ -40,7 +40,7 @@
 | `block_replace` | 替换指定 block（同一 block 仅限一次） | `--block-id` `--content` |
 | `block_delete` | 删除指定 block（逗号分隔可批量） | `--block-id` |
 | `overwrite` | ⚠️ 清空文档后全文重写（可能丢失图片、评论） | `--content` |
-| `append` | 在文档末尾追加内容（等价于 `block_insert_after --block-id -1`） | `--content` |
+| `append` | ⚠️ 在文档**末尾**追加内容（等价于 `block_insert_after --block-id -1`）。**不适用于逐章填充**——逐章写入请用 `block_insert_after` 并指定对应标题的 `--block-id` | `--content` |
 | `block_move_after` | 移动已有 block 到指定位置 | `--block-id` + (`--content` 或 `--src-block-ids`) |
 
 ## 指令示例
@@ -138,6 +138,24 @@ lark-cli docs +update --api-version v2 --doc "<doc_id>" --command append \
 ```
 
 > 等价于 `block_insert_after --block-id -1`，无需先获取 block ID。
+>
+> ⚠️ **常见反模式：骨架 + append 逐章填充**
+>
+> `append` 永远追加到文档**末尾**。如果你先创建了包含多个标题的骨架文档，然后用 `append` 逐章写入内容，所有内容都会堆在文档最后，而不是跟在各自标题后面。
+>
+> **正确做法**：先用 `docs +fetch --api-version v2 --detail with-ids` 获取各章节标题的 block ID，再用 `block_insert_after --block-id <标题 block_id>` 将内容插入到对应标题之后。
+>
+> ```
+> # 错误（反模式）：
+> lark-cli docs +update ... --command append --content '<p>第一章内容</p>'   # → 跑到文档末尾
+> lark-cli docs +update ... --command append --content '<p>第二章内容</p>'   # → 又跑到文档末尾
+>
+> # 正确：
+> lark-cli docs +update ... --command block_insert_after --block-id blk_h1_ch1 --content '<p>第一章内容</p>'
+> lark-cli docs +update ... --command block_insert_after --block-id blk_h1_ch2 --content '<p>第二章内容</p>'
+> ```
+>
+> `append` 的正确用途：向已有完整文档末尾追加新章节、附录、脚注等。
 
 ### block_copy_insert_after — 复制块并插入
 

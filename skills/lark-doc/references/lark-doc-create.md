@@ -73,7 +73,8 @@ lark-cli docs +create --api-version v2 --doc-format markdown --content $'# 项�
 ## 最佳实践
 
 - 文档标题从内容中自动提取（XML `<title>` 或 Markdown `#`），不要在内容开头重复写标题
-- **创建较长的文档时只建骨架**：`--content` 仅传标题 + 各级 heading + 简短占位摘要；正文留给后续 `docs +update --command append` 或 `block_insert_after` 分段追加。一次性塞超长 `--content` 既容易触发参数限制，调试也更难。
+- **创建较长的文档时只建骨架**：`--content` 仅传标题 + 各级 heading + 简短占位摘要；正文留给后续 `block_insert_after --block-id <章节标题 block_id>` 分段追加。一次性塞超长 `--content` 既容易触发参数限制，调试也更难。
+- ⚠️ **不要用 `append` 做逐章填充**：`append` 永远追加到文档末尾，会导致所有章节内容堆在文档最后。逐章填充必须用 `block_insert_after` 并指定对应标题的 `--block-id`。
 - **视觉丰富度**：必须遵循 [`lark-doc-style.md`](style/lark-doc-style.md) 中的样式指南，主动使用结构化 block 丰富文档
 
 ## 参考

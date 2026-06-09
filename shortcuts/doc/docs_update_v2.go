@@ -24,11 +24,11 @@ var validCommandsV2 = map[string]bool{
 // v2UpdateFlags returns the flag definitions for the v2 (OpenAPI) update path.
 func v2UpdateFlags() []common.Flag {
 	return []common.Flag{
-		{Name: "command", Desc: "operation; requirements: str_replace(--pattern), block_delete(--block-id, comma-separated for batch), block_insert_after/block_replace(--block-id,--content), block_copy_insert_after/block_move_after(--block-id,--src-block-ids), overwrite/append(--content)", Enum: validCommandsV2Keys()},
+		{Name: "command", Desc: "operation; requirements: str_replace(--pattern), block_delete(--block-id, comma-separated for batch), block_insert_after/block_replace(--block-id,--content), block_copy_insert_after/block_move_after(--block-id,--src-block-ids), overwrite/append(--content). append always inserts at document end (equiv. block_insert_after --block-id -1)", Enum: validCommandsV2Keys()},
 		{Name: "doc-format", Desc: "content format for --content; xml is default for precise rich edits, markdown for user-provided Markdown or plain append/overwrite", Default: "xml", Enum: []string{"xml", "markdown"}},
 		{Name: "content", Desc: "replacement or inserted content; XML by default or Markdown when --doc-format markdown; empty with str_replace deletes match. " + docsContentSkillHelp + "; use --help for the latest command flags", Input: []string{common.File, common.Stdin}},
 		{Name: "pattern", Desc: "str_replace match pattern; XML mode is inline text, Markdown mode can match multiline text"},
-		{Name: "block-id", Desc: "target block ID(s) for block operations (comma-separated for batch delete); -1 means document end where supported"},
+		{Name: "block-id", Desc: "target block ID(s) for block operations (comma-separated for batch delete); -1 means document end (same as --command append). Use explicit block IDs for chapter-by-chapter insertion"},
 		{Name: "src-block-ids", Desc: "comma-separated source block ids for block_copy_insert_after and block_move_after"},
 		{Name: "revision-id", Desc: "base revision id; -1 means latest", Type: "int", Default: "-1"},
 	}
