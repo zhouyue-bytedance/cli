@@ -83,11 +83,15 @@ var NoteTranscript = common.Shortcut{
 			Set("format", runtime.Str("format")).
 			Set("page_size", transcriptPageSize).
 			Set("locale", transcriptLocale).
-			Set("note", "CLI paginates internally (cursor_id) and saves the full transcript to a file")
+			Set("note", "CLI first checks note_display_type via note detail, then paginates internally (cursor_id) and saves the full unified transcript to a file")
 	},
 	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		noteID := strings.TrimSpace(runtime.Str("note-id"))
 		format := runtime.Str("format")
+
+		if err := ensureUnifiedNote(ctx, runtime, noteID); err != nil {
+			return err
+		}
 
 		content, err := fetchUnifiedTranscript(ctx, runtime, noteID, format)
 		if err != nil {
@@ -121,6 +125,17 @@ var NoteTranscript = common.Shortcut{
 		}, nil, nil)
 		return nil
 	},
+}
+
+func ensureUnifiedNote(ctx context.Context, runtime *common.RuntimeContext, noteID string) error {
+	detail, err := FetchDetail(ctx, runtime, noteID)
+	if err != nil {
+		return mapNoteError(err)
+	}
+	if detail.DisplayType != "unified" {
+		return output.ErrValidation("note %s is not a unified note (note_display_type=%s); use docs +fetch with the verbatim_doc_token for normal notes", noteID, detail.DisplayType)
+	}
+	return nil
 }
 
 // fetchUnifiedTranscript walks every page of the unified transcript and returns
