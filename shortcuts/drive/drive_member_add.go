@@ -67,11 +67,11 @@ var DriveMemberAdd = common.Shortcut{
 	HasFormat:   true,
 	Flags: []common.Flag{
 		{Name: "token", Desc: "target token or document URL; type is auto-inferred from URL path when omitted", Required: true},
-		{Name: "type", Desc: "target resource type; required when --token is a bare token", Enum: driveMemberAddResourceTypes},
+		{Name: "type", Desc: "target resource type; required when --token is a bare token"},
 		{Name: "member-id", Desc: "collaborator ID; comma-separated for batch (max 10). Interpretation is decided by --member-type", Required: true},
-		{Name: "member-type", Desc: "ID type for --member-id; supported: email|openid|unionid|openchat|opendepartmentid|groupid|appid", Enum: driveMemberAddIDTypes, Required: true},
-		{Name: "perm", Desc: "permission role to grant; defaults to view", Enum: driveMemberAddPerms},
-		{Name: "perm-type", Desc: "wiki permission scope; defaults to single_page; rejected for non-wiki types", Enum: driveMemberAddPermTypes},
+		{Name: "member-type", Desc: "ID type for --member-id; supported: email|openid|unionid|openchat|opendepartmentid|groupid|appid", Required: true},
+		{Name: "perm", Desc: "permission role to grant; defaults to view"},
+		{Name: "perm-type", Desc: "wiki permission scope; defaults to single_page; rejected for non-wiki types"},
 		{Name: "need-notification", Type: "bool", Desc: "send an in-app notification after the grant (user identity only)"},
 	},
 	Tips: []string{
@@ -187,13 +187,19 @@ func readDriveMemberAddSpec(runtime *common.RuntimeContext) (driveMemberAddSpec,
 	}
 
 	// perm: default to view.
-	perm := strings.ToLower(strings.TrimSpace(runtime.Str("perm")))
+	perm, err := normalizeDriveMemberAddEnumValue(runtime.Str("perm"), driveMemberAddPerms, "--perm")
+	if err != nil {
+		return driveMemberAddSpec{}, err
+	}
 	if perm == "" {
 		perm = "view"
 	}
 
 	// perm-type: only meaningful for wiki; default single_page.
-	permType := strings.ToLower(strings.TrimSpace(runtime.Str("perm-type")))
+	permType, err := normalizeDriveMemberAddEnumValue(runtime.Str("perm-type"), driveMemberAddPermTypes, "--perm-type")
+	if err != nil {
+		return driveMemberAddSpec{}, err
+	}
 	if resourceType == "wiki" && permType == "" {
 		permType = driveMemberAddDefaultPermType(resourceType)
 	} else if resourceType != "wiki" && runtime.Changed("perm-type") {
@@ -304,7 +310,11 @@ func isSupportedDriveMemberAddResourceType(resourceType string) bool {
 }
 
 func resolveDriveMemberAddMemberType(memberIDs []string, explicit string) (string, error) {
-	explicit = strings.ToLower(strings.TrimSpace(explicit))
+	var err error
+	explicit, err = normalizeDriveMemberAddEnumValue(explicit, driveMemberAddIDTypes, "--member-type")
+	if err != nil {
+		return "", err
+	}
 	if explicit == "" {
 		return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "--member-type is required; accepted values: %s", strings.Join(driveMemberAddIDTypes, ", ")).WithParam("--member-type")
 	}
@@ -321,6 +331,25 @@ func resolveDriveMemberAddMemberType(memberIDs []string, explicit string) (strin
 
 func normalizeDriveMemberAddMemberType(memberType string) string {
 	return strings.ToLower(strings.TrimSpace(memberType))
+}
+
+func normalizeDriveMemberAddEnumValue(raw string, allowed []string, flagName string) (string, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "", nil
+	}
+	for _, candidate := range allowed {
+		if strings.EqualFold(value, candidate) {
+			return candidate, nil
+		}
+	}
+	return "", errs.NewValidationError(
+		errs.SubtypeInvalidArgument,
+		"invalid value %q for %s, allowed: %s",
+		value,
+		flagName,
+		strings.Join(allowed, ", "),
+	).WithParam(flagName)
 }
 
 // splitAndTrimMembers splits a comma-separated member-id string and trims whitespace.
@@ -464,17 +493,28 @@ func executeDriveMemberAddBatch(runtime *common.RuntimeContext, spec driveMember
 	return nil
 }
 
-const driveMemberAddInvalidOperationCode = 1063003
+const (
+	driveMemberAddInvalidParameterCode = 1063001
+	driveMemberAddInvalidOperationCode = 1063003
+)
 
 func wrapDriveMemberAddBatchAPIError(err error) error {
 	var apiErr *errs.APIError
-	if !errors.As(err, &apiErr) || apiErr.Code != driveMemberAddInvalidOperationCode {
+	if !errors.As(err, &apiErr) {
 		return err
 	}
 
 	wrapped := *apiErr
-	wrapped.Message = "Drive batch member add failed: one or more requested members may already be collaborators on this resource"
-	wrapped.Hint = "For batch add, remove members that already have access (especially a bot/app being added again), then retry only the missing collaborators."
+	switch apiErr.Code {
+	case driveMemberAddInvalidOperationCode:
+		wrapped.Message = "Drive batch member add failed: one or more requested members may already be collaborators on this resource"
+		wrapped.Hint = "For batch add, remove members that already have access (especially a bot/app being added again), then retry only the missing collaborators."
+	case driveMemberAddInvalidParameterCode:
+		wrapped.Message = "Drive batch member add failed: one or more requested members may be invalid for this resource or identity"
+		wrapped.Hint = "Check whether each --member-id exists, belongs to the same tenant, and is visible to the current identity; remove invalid members and retry only the valid collaborators."
+	default:
+		return err
+	}
 	wrapped.Cause = err
 	return &wrapped
 }
@@ -560,9 +600,14 @@ func driveMemberAddOutputWithOptions(spec driveMemberAddSpec, fallbackMemberID s
 		"resource_type":  spec.ResourceType,
 	}
 	if raw != nil {
-		for _, key := range []string{"member_id", "member_type", "perm", "perm_type", "type"} {
+		for _, key := range []string{"member_id", "member_type", "perm", "type"} {
 			if v, ok := raw[key]; ok {
 				out[key] = v
+			}
+		}
+		if spec.ResourceType == "wiki" {
+			if v, ok := raw["perm_type"]; ok {
+				out["perm_type"] = v
 			}
 		}
 	}

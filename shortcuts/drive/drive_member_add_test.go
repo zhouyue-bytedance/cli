@@ -337,6 +337,55 @@ func TestDriveMemberAddOutput_BackfillsAppIDMemberType(t *testing.T) {
 	}
 }
 
+func TestDriveMemberAddOutput_OmitsPermTypeForNonWiki(t *testing.T) {
+	t.Parallel()
+
+	spec := driveMemberAddSpec{
+		Token:        "doxTok",
+		ResourceType: "docx",
+		MemberIDs:    []string{"ou_x"},
+		MemberType:   "openid",
+		Perm:         "view",
+	}
+	out := driveMemberAddOutput(spec, "ou_x", map[string]interface{}{
+		"member_id":   "ou_x",
+		"member_type": "openid",
+		"perm":        "view",
+		"perm_type":   "container",
+		"type":        "user",
+	})
+	if _, ok := out["perm_type"]; ok {
+		t.Fatalf("perm_type should be omitted for non-wiki output, got %#v", out["perm_type"])
+	}
+}
+
+func TestBuildDriveMemberAddBatchResult_OmitsPermTypeForNonWiki(t *testing.T) {
+	t.Parallel()
+
+	spec := driveMemberAddSpec{
+		Token:        "doxTok",
+		ResourceType: "docx",
+		MemberIDs:    []string{"ou_a", "ou_b"},
+		MemberType:   "openid",
+		Perm:         "view",
+	}
+	result := buildDriveMemberAddBatchResult(spec, map[string]interface{}{
+		"members": []interface{}{
+			map[string]interface{}{"member_id": "ou_a", "member_type": "openid", "perm": "view", "perm_type": "container", "type": "user"},
+			map[string]interface{}{"member_id": "ou_b", "member_type": "openid", "perm": "view", "perm_type": "container", "type": "user"},
+		},
+	})
+	members, ok := result["members"].([]map[string]interface{})
+	if !ok {
+		t.Fatalf("members = %#v, want []map[string]interface{}", result["members"])
+	}
+	for i, member := range members {
+		if _, exists := member["perm_type"]; exists {
+			t.Fatalf("members[%d].perm_type should be omitted for non-wiki output, got %#v", i, member["perm_type"])
+		}
+	}
+}
+
 // ── shortcut integration tests ──────────────────────────────────────────────
 
 func TestDriveMemberAdd_PermDefaultsToView(t *testing.T) {
@@ -582,6 +631,96 @@ func TestDriveMemberAdd_DryRunInfersTypeAndDefaultsWikiPermType(t *testing.T) {
 	}
 	if api.Body["member_id"] != "ou_x" || api.Body["member_type"] != "openid" || api.Body["perm"] != "full_access" || api.Body["type"] != "user" || api.Body["perm_type"] != "single_page" {
 		t.Fatalf("body = %#v", api.Body)
+	}
+}
+
+func TestDriveMemberAdd_DryRunAcceptsUppercaseEnumsForDocx(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	f, stdout, _, _ := cmdutil.TestFactory(t, driveTestConfig())
+	err := mountAndRunDrive(t, DriveMemberAdd, []string{
+		"+member-add",
+		"--token", "doxcnTok",
+		"--type", "DOCX",
+		"--member-id", "ou_x",
+		"--member-type", "OPENID",
+		"--perm", "EDIT",
+		"--dry-run",
+		"--as", "user",
+	}, f, stdout)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var got struct {
+		API []struct {
+			Params map[string]interface{} `json:"params"`
+			Body   map[string]interface{} `json:"body"`
+		} `json:"api"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("decode dry-run output: %v\n%s", err, stdout.String())
+	}
+	if got.API[0].Params["type"] != "docx" {
+		t.Fatalf("params.type = %v, want docx", got.API[0].Params["type"])
+	}
+	if got.API[0].Body["member_type"] != "openid" || got.API[0].Body["perm"] != "edit" {
+		t.Fatalf("body = %#v, want canonical lowercase enum values", got.API[0].Body)
+	}
+}
+
+func TestDriveMemberAdd_DryRunAcceptsUppercaseWikiPermType(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	f, stdout, _, _ := cmdutil.TestFactory(t, driveTestConfig())
+	err := mountAndRunDrive(t, DriveMemberAdd, []string{
+		"+member-add",
+		"--token", "wikcnTok",
+		"--type", "WIKI",
+		"--member-id", "ou_x",
+		"--member-type", "OPENID",
+		"--perm", "EDIT",
+		"--perm-type", "CONTAINER",
+		"--dry-run",
+		"--as", "user",
+	}, f, stdout)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var got struct {
+		API []struct {
+			Params map[string]interface{} `json:"params"`
+			Body   map[string]interface{} `json:"body"`
+		} `json:"api"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("decode dry-run output: %v\n%s", err, stdout.String())
+	}
+	if got.API[0].Params["type"] != "wiki" {
+		t.Fatalf("params.type = %v, want wiki", got.API[0].Params["type"])
+	}
+	if got.API[0].Body["member_type"] != "openid" || got.API[0].Body["perm"] != "edit" || got.API[0].Body["perm_type"] != "container" {
+		t.Fatalf("body = %#v, want canonical lowercase enum values", got.API[0].Body)
+	}
+}
+
+func TestDriveMemberAdd_RejectsInvalidPermLocallyWithoutGlobalEnum(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	f, stdout, _, _ := cmdutil.TestFactory(t, driveTestConfig())
+	err := mountAndRunDrive(t, DriveMemberAdd, []string{
+		"+member-add",
+		"--token", "doxcnTok",
+		"--type", "DOCX",
+		"--member-id", "ou_x",
+		"--member-type", "OPENID",
+		"--perm", "INVALID_EDIT",
+		"--dry-run",
+		"--as", "user",
+	}, f, stdout)
+	if err == nil || !strings.Contains(err.Error(), "invalid value \"INVALID_EDIT\" for --perm") {
+		t.Fatalf("expected local invalid --perm validation error, got: %v", err)
 	}
 }
 
@@ -1047,6 +1186,50 @@ func TestDriveMemberAdd_ExecuteBatchInvalidOperationHasActionableHint(t *testing
 	}
 	if !strings.Contains(apiErr.Hint, "retry only the missing collaborators") {
 		t.Fatalf("hint = %q, want retry guidance", apiErr.Hint)
+	}
+}
+
+func TestDriveMemberAdd_ExecuteBatchInvalidParameterHasConservativeHint(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	f, stdout, _, reg := cmdutil.TestFactory(t, driveTestConfig())
+
+	stub := &httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/drive/v1/permissions/bascnTok/members/batch_create",
+		Body: map[string]interface{}{
+			"code": 1063001,
+			"msg":  "Invalid parameter",
+			"data": map[string]interface{}{},
+		},
+	}
+	reg.Register(stub)
+
+	err := mountAndRunDrive(t, DriveMemberAdd, []string{
+		"+member-add",
+		"--token", "bascnTok",
+		"--type", "bitable",
+		"--member-id", "ou_a,ou_missing",
+		"--member-type", "openid",
+		"--perm", "view",
+		"--as", "user",
+		"--yes",
+	}, f, stdout)
+	if err == nil {
+		t.Fatal("expected API error, got nil")
+	}
+	var apiErr *errs.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *errs.APIError, got %T: %v", err, err)
+	}
+	if apiErr.Code != 1063001 {
+		t.Fatalf("code = %d, want 1063001", apiErr.Code)
+	}
+	if !strings.Contains(apiErr.Message, "requested members may be invalid") {
+		t.Fatalf("message = %q, want invalid-member guidance", apiErr.Message)
+	}
+	if !strings.Contains(apiErr.Hint, "belongs to the same tenant") || !strings.Contains(apiErr.Hint, "visible to the current identity") {
+		t.Fatalf("hint = %q, want conservative validation guidance", apiErr.Hint)
 	}
 }
 
