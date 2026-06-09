@@ -30,6 +30,34 @@ func TestParseLooseInt(t *testing.T) {
 	}
 }
 
+func TestParseLooseCursorID(t *testing.T) {
+	tests := []struct {
+		name string
+		in   any
+		want string
+		ok   bool
+	}{
+		{name: "string", in: "7648924766078847940", want: "7648924766078847940", ok: true},
+		{name: "trim string", in: " 123 ", want: "123", ok: true},
+		{name: "empty string", in: "", ok: false},
+		{name: "zero string", in: "0", ok: false},
+		{name: "json number", in: json.Number("123"), want: "123", ok: true},
+		{name: "float safe integer", in: float64(123), want: "123", ok: true},
+		{name: "float unsafe integer", in: float64(1<<53 + 1), ok: false},
+		{name: "float fractional", in: float64(1.5), ok: false},
+		{name: "negative", in: -1, ok: false},
+		{name: "nil", in: nil, ok: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := parseLooseCursorID(tt.in)
+			if got != tt.want || ok != tt.ok {
+				t.Fatalf("parseLooseCursorID(%v) = (%q, %v), want (%q, %v)", tt.in, got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}
+
 func TestExtractArtifactTokens(t *testing.T) {
 	artifacts := []any{
 		map[string]any{"doc_token": "main_doc", "artifact_type": float64(1)},

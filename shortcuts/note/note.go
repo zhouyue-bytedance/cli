@@ -12,6 +12,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/validate"
@@ -157,19 +159,41 @@ func parseLooseInt(v any) int {
 	}
 }
 
-// parseLooseInt64 is the int64 variant used for pagination cursors.
-func parseLooseInt64(v any) int64 {
+// parseLooseCursorID extracts a positive cursor as a string. String cursors are
+// preferred because large JSON numbers lose precision when decoded into any.
+func parseLooseCursorID(v any) (string, bool) {
 	switch n := v.(type) {
+	case string:
+		s := strings.TrimSpace(n)
+		if s == "" || s == "0" {
+			return "", false
+		}
+		return s, true
 	case json.Number:
-		i, _ := n.Int64()
-		return i
+		i, err := n.Int64()
+		if err != nil || i <= 0 {
+			return "", false
+		}
+		return strconv.FormatInt(i, 10), true
 	case float64:
-		return int64(n)
+		// encoding/json decodes numbers in map[string]any as float64. Accept
+		// only values that can round-trip safely as an integer cursor.
+		const maxSafeJSONInteger = 1<<53 - 1
+		if n <= 0 || n != float64(int64(n)) || n > maxSafeJSONInteger {
+			return "", false
+		}
+		return strconv.FormatInt(int64(n), 10), true
 	case int64:
-		return n
+		if n <= 0 {
+			return "", false
+		}
+		return strconv.FormatInt(n, 10), true
 	case int:
-		return int64(n)
+		if n <= 0 {
+			return "", false
+		}
+		return strconv.Itoa(n), true
 	default:
-		return 0
+		return "", false
 	}
 }
